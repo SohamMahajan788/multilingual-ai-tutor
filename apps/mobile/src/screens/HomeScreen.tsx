@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 
 import { useAppStore } from '../stores/appStore';
 
@@ -128,6 +129,8 @@ export default function HomeScreen(): React.ReactElement {
   const displayName = studentName.trim() || 'स्टूडेंट';
   const displayGrade = studentGrade > 0 ? String(studentGrade) : '—';
 
+  const navigation = useNavigation<any>();
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -191,7 +194,10 @@ export default function HomeScreen(): React.ReactElement {
 
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>जारी रखें</Text>
-          <TouchableOpacity accessibilityRole="button">
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => navigation.navigate('Learn')}
+          >
             <Text style={styles.sectionLink}>सब देखें →</Text>
           </TouchableOpacity>
         </View>
@@ -238,6 +244,7 @@ export default function HomeScreen(): React.ReactElement {
               ]}
               accessibilityRole="button"
               accessibilityLabel={`${subject.englishName}`}
+              onPress={() => navigation.navigate('Learn')}
             >
               <Text style={styles.subjectEmoji}>{subject.emoji}</Text>
               <Text style={styles.subjectName}>{subject.name}</Text>
@@ -265,6 +272,7 @@ export default function HomeScreen(): React.ReactElement {
               activeOpacity={0.9}
               accessibilityRole="button"
               accessibilityLabel="Solve daily challenge"
+              onPress={() => navigation.navigate('Learn')}
             >
               <Text style={styles.challengeBtnLabel}>हल करें →</Text>
             </TouchableOpacity>

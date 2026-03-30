@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppStore } from '../stores/appStore';
+
 const BUILDINGS = [
   {
     id: 'school',
@@ -95,10 +97,7 @@ const BUILDINGS = [
 
 type Building = (typeof BUILDINGS)[number];
 
-const STUDENT_XP = 240;
-const STUDENT_LEVEL = 3;
 const XP_TO_NEXT_LEVEL = 500;
-const STREAK_DAYS = 5;
 
 const XP_REWARDS = [
   { action: 'Complete a lesson', xp: '50', icon: '📖' },
@@ -111,15 +110,18 @@ const XP_REWARDS = [
 const screenWidth = Dimensions.get('window').width;
 const BUILDING_CARD_WIDTH = (screenWidth - 48) / 2;
 
-const XP_FILL_PCT = Math.min(
-  (STUDENT_XP / XP_TO_NEXT_LEVEL) * 100,
-  100
-);
-
 /**
  * Village map gamification: buildings, XP, streak, and detail sheet.
  */
 export default function VillageScreen(): React.ReactElement {
+  const { xp: STUDENT_XP, level: STUDENT_LEVEL, streakDays: STREAK_DAYS } =
+    useAppStore();
+
+  const XP_FILL_PCT = Math.min(
+    (STUDENT_XP / XP_TO_NEXT_LEVEL) * 100,
+    100
+  );
+
   const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
 
   const unlockedCount = useMemo(
