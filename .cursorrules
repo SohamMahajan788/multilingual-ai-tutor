@@ -1,0 +1,36 @@
+# VidyaBot — Multilingual AI Tutor for Rural India
+
+## Project Context
+React Native + Expo SDK 55 app for offline STEM education in rural India.
+Target devices: Android with 512MB to 2GB RAM, zero reliable internet.
+All AI inference runs ON-DEVICE using llama.cpp via Android JNI bridge.
+22 Indian scheduled languages supported with full offline ASR and TTS.
+
+## Critical Constraints
+- NEVER assume internet connectivity for any core feature
+- All AI inference must be async and non-blocking using queues
+- Memory budget: UI layer max 80MB, AI engine max 400MB, total max 512MB
+- Battery: throttle all inference when battery is below 20 percent
+- Use SQLite via expo-sqlite for ALL persistent storage, never AsyncStorage for curriculum data
+- Every user-facing string must use i18n translation keys, never hardcode English text
+- Offline scenario must always be handled first, online scenario second
+
+## Technology Stack
+- React Native 0.76 with Expo SDK 55
+- TypeScript in strict mode always
+- Zustand for all global state management
+- React Navigation 6 for all navigation
+- llama.cpp GGUF models via custom Android JNI native module
+- Whisper.cpp for speech recognition via native module
+- VITS and MMS models for text to speech via native module
+- expo-sqlite for all database needs
+- MediaPipe for all computer vision features
+- expo-camera for camera access
+
+## Code Style Rules
+- Functional components only, never class components
+- Every component must handle loading state and error state
+- Prefer composition over deep prop drilling
+- Write JSDoc comments on every exported function
+- Always handle offline case first, then online case
+- Use React.memo on all list item components
