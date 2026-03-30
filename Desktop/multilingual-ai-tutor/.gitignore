@@ -1,4 +1,4 @@
-echo "multilingual-ai-tutor/" >> .gitignore
+# Monorepo ignores
 node_modules/
 .expo/
 dist/
@@ -10,3 +10,10 @@ ios/build/
 *.onnx
 .env
 .env.local
+
+# Windows
+Desktop.ini
+Thumbs.db
+
+# Never track parent directories
+../
