@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { LearnStackParamList } from '../../navigation/types';
+import { generateResponse, buildTutorPrompt } from '../../native/LlamaEngine';
 
 type MessageType = 'user' | 'ai' | 'quiz' | 'analogy';
 
@@ -168,6 +169,9 @@ export default function LessonScreen({
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<
+    { role: string; content: string }[]
+  >([]);
 
   const flatListRef = useRef<FlatList<Message>>(null);
 
@@ -178,11 +182,9 @@ export default function LessonScreen({
     return () => clearTimeout(t);
   }, [messages, isTyping]);
 
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     const trimmed = inputText.trim();
-    if (!trimmed) {
-      return;
-    }
+    if (!trimmed) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -190,34 +192,46 @@ export default function LessonScreen({
       text: trimmed,
       timestamp: new Date(),
     };
+
     setMessages((prev) => [...prev, userMsg]);
     setInputText('');
     setIsTyping(true);
 
-    setTimeout(() => {
+    // Add to conversation history
+    const newHistory = [
+      ...conversationHistory,
+      { role: 'user', content: trimmed },
+    ];
+    setConversationHistory(newHistory);
+
+    try {
+      // Build prompt for on-device LLM
+      const prompt = buildTutorPrompt(
+        trimmed,
+        'Hindi',
+        'Science',
+        topicName,
+        newHistory
+      );
+
+      // Generate response from on-device LLM
+      const responseText = await generateResponse(prompt, 200);
+
       setIsTyping(false);
 
-      const lower = trimmed.toLowerCase();
-      let responseText =
-        MOCK_RESPONSES.default[
-          Math.floor(Math.random() * MOCK_RESPONSES.default.length)
-        ];
-      if (lower.includes('photo') || lower.includes('plant')) {
-        responseText = MOCK_RESPONSES.photosynthesis[0];
-      } else if (lower.includes('water') || lower.includes('cycle')) {
-        responseText = MOCK_RESPONSES.water[0];
-      } else if (lower.includes('force') || lower.includes('push')) {
-        responseText = MOCK_RESPONSES.force[0];
-      }
-
       const aiMsg: Message = {
-        id: `${Date.now() + 1}`,
+        id: (Date.now() + 1).toString(),
         type: 'ai',
         text: responseText,
         timestamp: new Date(),
         isStreaming: true,
       };
+
       setMessages((prev) => [...prev, aiMsg]);
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: 'assistant', content: responseText },
+      ]);
 
       setTimeout(() => {
         setMessages((prev) =>
@@ -226,8 +240,17 @@ export default function LessonScreen({
           )
         );
       }, 2000);
-    }, 1500);
-  }, [inputText]);
+    } catch (error) {
+      setIsTyping(false);
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        text: 'Sorry, I had trouble thinking of a response. Please try again!',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    }
+  }, [inputText, conversationHistory, topicName]);
 
   const toggleListening = useCallback(() => {
     setIsListening((v) => !v);
