@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import type { StackScreenProps } from '@react-navigation/stack';
+import type { LearnStackParamList } from '../../navigation/types';
 
 const SUBJECTS = [
   {
@@ -51,7 +53,8 @@ const SUBJECTS = [
   },
 ];
 
-export default function SubjectListScreen() {
+type Props = StackScreenProps<LearnStackParamList, 'SubjectList'>;
+export default function SubjectListScreen({ navigation }: Props) {
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
 
   return (
@@ -148,7 +151,12 @@ export default function SubjectListScreen() {
                           topic.mastery === 0 ? '#E8720C' :
                           topic.mastery >= 100 ? '#E8E4DC' : '#1A5C3A',
                       },
-                    ]}>
+                    ]}
+                    onPress={() => navigation.navigate('Lesson', {
+                      topicId: topic.id,
+                      topicName: topic.name,
+                    })}
+                    >
                       <Text style={[
                         styles.actionText,
                         { color: topic.mastery >= 100 ? '#6B6B6B' : 'white' },
