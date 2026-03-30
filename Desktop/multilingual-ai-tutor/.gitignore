@@ -1,0 +1,12 @@
+echo "multilingual-ai-tutor/" >> .gitignore
+node_modules/
+.expo/
+dist/
+build/
+android/build/
+ios/build/
+*.gguf
+*.bin
+*.onnx
+.env
+.env.local
