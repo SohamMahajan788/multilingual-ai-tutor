@@ -1,4 +1,5 @@
 import { NativeModules } from 'react-native';
+import { getAILanguageInstruction } from '../data/translations';
 
 const { LlamaModule } = NativeModules;
 
@@ -16,17 +17,12 @@ export async function generateResponse(
     console.log('AI raw response:', raw);
 
     let response = raw || '';
-
-    // Stop at prompt template tokens
     const stopTokens = ['<|im_start|>', '<|im_end|>', '<|system|>', '<|user|>', '<|assistant|>', '</s>'];
     for (const stop of stopTokens) {
       const idx = response.indexOf(stop);
       if (idx !== -1) response = response.substring(0, idx);
     }
-
-    // Remove garbage unicode replacement characters
     response = response.replace(/[\uFFFC\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
-
     console.log('AI cleaned response:', response);
     return response || getMockResponse(prompt);
   } catch (e) {
@@ -52,9 +48,6 @@ export async function isModelLoaded(): Promise<boolean> {
   }
 }
 
-/**
- * TinyLlama chat format
- */
 export function buildTutorPrompt(
   userMessage: string,
   language: string,
@@ -62,7 +55,8 @@ export function buildTutorPrompt(
   topicName: string,
   conversationHistory: { role: string; content: string }[]
 ): string {
-  const systemContent = `You are VidyaBot, a friendly tutor for Indian students. Subject: ${subject}, Topic: ${topicName}. Answer in 1-2 short sentences. Use simple words.`;
+  const langInstruction = language === 'English' ? '' : `Reply in ${language} only.`;
+  const systemContent = `You are VidyaBot, a tutor for Indian students. ${langInstruction} Answer in 2 sentences max.`;
 
   let prompt = `<|system|>\n${systemContent}</s>\n`;
 

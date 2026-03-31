@@ -1,236 +1,129 @@
-import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet,
-  TouchableOpacity, ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { StackScreenProps } from '@react-navigation/stack';
-import type { LearnStackParamList } from '../../navigation/types';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const SUBJECTS = [
-  {
-    id: 'science', name: 'Science', emoji: '🔬',
-    color: '#E8F4EE', accentColor: '#1A5C3A',
-    totalTopics: 24, completedTopics: 8,
-    topics: [
-      { id: 's1', name: 'Light & Shadow', mastery: 85 },
-      { id: 's2', name: 'Water Cycle', mastery: 72 },
-      { id: 's3', name: 'Photosynthesis', mastery: 45 },
-      { id: 's4', name: 'Human Body', mastery: 0 },
-    ],
-  },
-  {
-    id: 'math', name: 'Mathematics', emoji: '📐',
-    color: '#E6EEF8', accentColor: '#1A4A7A',
-    totalTopics: 30, completedTopics: 12,
-    topics: [
-      { id: 'm1', name: 'Fractions', mastery: 90 },
-      { id: 'm2', name: 'Decimals', mastery: 78 },
-      { id: 'm3', name: 'Algebra', mastery: 55 },
-      { id: 'm4', name: 'Geometry', mastery: 0 },
-    ],
-  },
-  {
-    id: 'social', name: 'Social Studies', emoji: '🌍',
-    color: '#FDF5E0', accentColor: '#7A4F00',
-    totalTopics: 20, completedTopics: 5,
-    topics: [
-      { id: 'ss1', name: 'Indian History', mastery: 60 },
-      { id: 'ss2', name: 'Geography', mastery: 40 },
-      { id: 'ss3', name: 'Civics', mastery: 0 },
-    ],
-  },
-  {
-    id: 'english', name: 'English', emoji: '📖',
-    color: '#F5ECF8', accentColor: '#5C1A7A',
-    totalTopics: 18, completedTopics: 6,
-    topics: [
-      { id: 'e1', name: 'Grammar', mastery: 70 },
-      { id: 'e2', name: 'Vocabulary', mastery: 55 },
-      { id: 'e3', name: 'Writing', mastery: 0 },
-    ],
-  },
-];
+import { getSubjectsForClass } from '../../data/curriculum';
+import { t } from '../../data/translations';
+import type { LearnStackParamList } from '../../navigation/types';
+import { useAppStore } from '../../stores/appStore';
 
 type Props = StackScreenProps<LearnStackParamList, 'SubjectList'>;
-export default function SubjectListScreen({ navigation }: Props) {
-  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+
+export default function SubjectListScreen({ navigation }: Props): React.ReactElement {
+  const { studentGrade, selectedLanguage, completedTopics } = useAppStore();
+  const lang = selectedLanguage as any || 'English';
+  const subjects = getSubjectsForClass(studentGrade || 8);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{t(lang, 'learn')}</Text>
+        <Text style={styles.subtitle}>Class {studentGrade || 8} • {subjects.length} Subjects</Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {subjects.map(subject => {
+          const isExpanded = expandedId === subject.id;
+          const done = completedTopics.filter(id => id.startsWith(subject.id)).length;
+          const total = subject.topics.length;
+          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>📚 Learn</Text>
-          <Text style={styles.headerSub}>Choose your subject</Text>
-        </View>
-
-        <View style={styles.progressCard}>
-          <View style={styles.progressRow}>
-            <Text style={styles.progressTitle}>Overall Progress</Text>
-            <Text style={styles.progressCount}>31/92 topics</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: '34%' }]} />
-          </View>
-          <Text style={styles.progressPercent}>34% Complete</Text>
-        </View>
-
-        {SUBJECTS.map((subject) => (
-          <View key={subject.id} style={styles.card}>
-
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => {
-                setExpandedSubject(
-                  expandedSubject === subject.id ? null : subject.id
-                );
-              }}
-              style={styles.cardHeader}
-            >
-              <View style={[styles.emojiCircle, { backgroundColor: subject.color }]}>
-                <Text style={styles.emoji}>{subject.emoji}</Text>
-              </View>
-
-              <View style={styles.cardMiddle}>
-                <Text style={styles.subjectName}>{subject.name}</Text>
-                <Text style={styles.topicCount}>
-                  {subject.completedTopics}/{subject.totalTopics} topics
-                </Text>
-                <View style={styles.track}>
-                  <View style={[styles.fill, {
-                    backgroundColor: subject.accentColor,
-                    width: `${Math.round(
-                      (subject.completedTopics / subject.totalTopics) * 100
-                    )}%`,
-                  }]} />
+          return (
+            <View key={subject.id} style={styles.subjectCard}>
+              <TouchableOpacity
+                style={styles.subjectHeader}
+                onPress={() => setExpandedId(isExpanded ? null : subject.id)}
+                activeOpacity={0.85}
+              >
+                <View style={[styles.emojiBox, { backgroundColor: subject.color + '33' }]}>
+                  <Text style={styles.emoji}>{subject.emoji}</Text>
                 </View>
-              </View>
-
-              <Ionicons
-                name={expandedSubject === subject.id ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                color="#6B6B6B"
-              />
-            </TouchableOpacity>
-
-            {expandedSubject === subject.id && (
-              <View>
-                <View style={styles.divider} />
-                {subject.topics.map((topic) => (
-                  <View key={topic.id} style={styles.topicRow}>
-                    <View style={[
-                      styles.masteryCircle,
-                      {
-                        backgroundColor:
-                          topic.mastery === 0 ? '#F5F5F5' :
-                          topic.mastery >= 80 ? subject.accentColor :
-                          subject.color,
-                      },
-                    ]}>
-                      {topic.mastery === 0 ? (
-                        <Ionicons name="lock-closed" size={14} color="#6B6B6B" />
-                      ) : topic.mastery >= 80 ? (
-                        <Ionicons name="checkmark" size={14} color="white" />
-                      ) : (
-                        <Text style={[styles.masteryText, { color: subject.accentColor }]}>
-                          {topic.mastery}%
-                        </Text>
-                      )}
-                    </View>
-
-                    <View style={styles.topicMiddle}>
-                      <Text style={styles.topicName}>{topic.name}</Text>
-                    </View>
-
-                    <TouchableOpacity style={[
-                      styles.actionBtn,
-                      {
-                        backgroundColor:
-                          topic.mastery === 0 ? '#E8720C' :
-                          topic.mastery >= 100 ? '#E8E4DC' : '#1A5C3A',
-                      },
-                    ]}
-                    onPress={() => navigation.navigate('Lesson', {
-                      topicId: topic.id,
-                      topicName: topic.name,
-                    })}
-                    >
-                      <Text style={[
-                        styles.actionText,
-                        { color: topic.mastery >= 100 ? '#6B6B6B' : 'white' },
-                      ]}>
-                        {topic.mastery === 0 ? 'Start' :
-                         topic.mastery >= 100 ? 'Done' : 'Continue'}
-                      </Text>
-                    </TouchableOpacity>
+                <View style={styles.subjectInfo}>
+                  <Text style={styles.subjectName}>{subject.name}</Text>
+                  <Text style={styles.subjectMeta}>{done}/{total} {t(lang, 'topics')} • {pct}%</Text>
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: subject.color }]} />
                   </View>
-                ))}
-              </View>
-            )}
-          </View>
-        ))}
+                </View>
+                <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color="#6B6B6B" />
+              </TouchableOpacity>
 
-        <View style={{ height: 100 }} />
+              {isExpanded && (
+                <View style={styles.topicsList}>
+                  {subject.topics.map(topic => {
+                    const isComplete = completedTopics.includes(topic.id);
+                    return (
+                      <TouchableOpacity
+                        key={topic.id}
+                        style={styles.topicRow}
+                        onPress={() => navigation.navigate('Lesson', {
+                          topicName: topic.name,
+                          topicId: topic.id,
+                          subjectId: subject.id,
+                          subjectName: subject.name,
+                        } as any)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={[styles.topicIcon, { backgroundColor: isComplete ? '#E8F4EE' : '#F5F5F5' }]}>
+                          <Ionicons
+                            name={isComplete ? 'checkmark-circle' : 'book-outline'}
+                            size={18}
+                            color={isComplete ? '#1A5C3A' : '#6B6B6B'}
+                          />
+                        </View>
+                        <View style={styles.topicInfo}>
+                          <Text style={styles.topicName}>{topic.name}</Text>
+                          <Text style={styles.topicMeta}>
+                            {topic.duration} • {t(lang, topic.difficulty.toLowerCase() as any)}
+                          </Text>
+                        </View>
+                        <View style={[
+                          styles.diffBadge,
+                          topic.difficulty === 'Easy' && styles.diffEasy,
+                          topic.difficulty === 'Medium' && styles.diffMedium,
+                          topic.difficulty === 'Hard' && styles.diffHard,
+                        ]}>
+                          <Text style={styles.diffText}>{t(lang, topic.difficulty.toLowerCase() as any)}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          );
+        })}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FDFBF7' },
-  header: { padding: 16 },
-  headerTitle: { fontSize: 24, fontWeight: '800', color: '#2C2C2C' },
-  headerSub: { fontSize: 13, color: '#6B6B6B', marginTop: 2 },
-  progressCard: {
-    backgroundColor: '#E8720C', borderRadius: 16,
-    margin: 16, padding: 16,
-  },
-  progressRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  progressTitle: { fontSize: 14, fontWeight: '700', color: 'white' },
-  progressCount: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
-  progressTrack: {
-    height: 8, borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.3)', marginTop: 10,
-  },
-  progressFill: { height: 8, borderRadius: 4, backgroundColor: 'white' },
-  progressPercent: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 6 },
-  card: {
-    backgroundColor: 'white', borderRadius: 16,
-    borderWidth: 1, borderColor: '#E8E4DC',
-    marginHorizontal: 16, marginBottom: 12,
-    overflow: 'hidden',
-  },
-  cardHeader: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
-  },
-  emojiCircle: {
-    width: 52, height: 52, borderRadius: 26,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  emoji: { fontSize: 26 },
-  cardMiddle: { flex: 1, marginLeft: 12, marginRight: 8 },
-  subjectName: { fontSize: 17, fontWeight: '700', color: '#2C2C2C' },
-  topicCount: { fontSize: 11, color: '#6B6B6B', marginTop: 4 },
-  track: {
-    height: 4, borderRadius: 2,
-    backgroundColor: '#E8E4DC', marginTop: 8,
-  },
-  fill: { height: 4, borderRadius: 2 },
-  divider: { height: 1, backgroundColor: '#E8E4DC' },
-  topicRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
-  },
-  masteryCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  masteryText: { fontSize: 11, fontWeight: '700' },
-  topicMiddle: { flex: 1, marginLeft: 12 },
-  topicName: { fontSize: 15, fontWeight: '500', color: '#2C2C2C' },
-  actionBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  actionText: { fontSize: 12, fontWeight: '600' },
+  safe: { flex: 1, backgroundColor: '#FDFBF7' },
+  header: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  title: { fontSize: 26, fontWeight: '800', color: '#2C2C2C' },
+  subtitle: { fontSize: 13, color: '#6B6B6B', marginTop: 2 },
+  scroll: { padding: 16, paddingBottom: 32 },
+  subjectCard: { backgroundColor: '#FFFFFF', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E8E4DC', overflow: 'hidden' },
+  subjectHeader: { flexDirection: 'row', alignItems: 'center', padding: 14 },
+  emojiBox: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  emoji: { fontSize: 24 },
+  subjectInfo: { flex: 1 },
+  subjectName: { fontSize: 15, fontWeight: '700', color: '#2C2C2C' },
+  subjectMeta: { fontSize: 12, color: '#6B6B6B', marginTop: 2, marginBottom: 4 },
+  progressBar: { height: 4, backgroundColor: '#F0F0F0', borderRadius: 2 },
+  progressFill: { height: 4, borderRadius: 2 },
+  topicsList: { borderTopWidth: 1, borderTopColor: '#F0F0F0', paddingHorizontal: 12, paddingBottom: 8 },
+  topicRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 10 },
+  topicIcon: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  topicInfo: { flex: 1 },
+  topicName: { fontSize: 14, fontWeight: '600', color: '#2C2C2C' },
+  topicMeta: { fontSize: 11, color: '#6B6B6B', marginTop: 2 },
+  diffBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  diffEasy: { backgroundColor: '#E8F4EE' },
+  diffMedium: { backgroundColor: '#FDF0E6' },
+  diffHard: { backgroundColor: '#FCF0F0' },
+  diffText: { fontSize: 11, fontWeight: '600', color: '#2C2C2C' },
 });
