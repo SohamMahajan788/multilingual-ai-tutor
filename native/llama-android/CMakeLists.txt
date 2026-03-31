@@ -9,24 +9,14 @@ set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
+if(ANDROID_ABI STREQUAL "arm64-v8a")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=armv8.2-a+fp16+dotprod")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=armv8.2-a+fp16+dotprod")
+endif()
+
 add_subdirectory(llama.cpp)
 
 add_library(vidyabot-llama SHARED src/llama_jni.cpp)
-
-# Detect which API version llama.cpp has
-include(CheckCXXSourceCompiles)
-set(CMAKE_REQUIRED_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/llama.cpp/include)
-check_cxx_source_compiles("
-#include \"llama.h\"
-int main() { llama_model_load_from_file(nullptr, llama_model_default_params()); return 0; }
-" LLAMA_HAS_NEW_API)
-
-if(LLAMA_HAS_NEW_API)
-    target_compile_definitions(vidyabot-llama PRIVATE LLAMA_API_NEW)
-    message(STATUS "Using new llama.cpp API")
-else()
-    message(STATUS "Using old llama.cpp API")
-endif()
 
 target_include_directories(vidyabot-llama PRIVATE
     llama.cpp/include

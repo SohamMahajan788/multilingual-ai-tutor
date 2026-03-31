@@ -2,25 +2,32 @@ import { NativeModules } from 'react-native';
 
 const { LlamaModule } = NativeModules;
 
-/**
- * Generates a response from the on-device LLM
- */
 export async function generateResponse(
   prompt: string,
-  maxTokens: number = 256
+  maxTokens: number = 200
 ): Promise<string> {
   try {
-    if (!LlamaModule) {
-      return getMockResponse(prompt);
-    }
+    if (!LlamaModule) return getMockResponse(prompt);
     const isLoaded = await LlamaModule.isLoaded();
-    if (!isLoaded) {
-      console.log('Model not loaded yet, falling back to mock');
-      return getMockResponse(prompt);
-    }
+    if (!isLoaded) return getMockResponse(prompt);
+
     console.log('Generating with real AI...');
-    const response = await LlamaModule.generateAsync(prompt, maxTokens);
-    console.log('AI response:', response);
+    const raw = await LlamaModule.generateAsync(prompt, maxTokens);
+    console.log('AI raw response:', raw);
+
+    let response = raw || '';
+
+    // Stop at prompt template tokens
+    const stopTokens = ['<|im_start|>', '<|im_end|>', '<|system|>', '<|user|>', '<|assistant|>', '</s>'];
+    for (const stop of stopTokens) {
+      const idx = response.indexOf(stop);
+      if (idx !== -1) response = response.substring(0, idx);
+    }
+
+    // Remove garbage unicode replacement characters
+    response = response.replace(/[\uFFFC\uFFFD\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
+
+    console.log('AI cleaned response:', response);
     return response || getMockResponse(prompt);
   } catch (e) {
     console.error('Generation error:', e);
@@ -28,22 +35,14 @@ export async function generateResponse(
   }
 }
 
-/**
- * Stops ongoing generation
- */
 export async function stopGeneration(): Promise<void> {
   try {
-    if (LlamaModule) {
-      await LlamaModule.stopGenerationAsync();
-    }
+    if (LlamaModule) await LlamaModule.stopGenerationAsync();
   } catch (e) {
     console.error('Stop generation error:', e);
   }
 }
 
-/**
- * Checks if model is loaded
- */
 export async function isModelLoaded(): Promise<boolean> {
   try {
     if (!LlamaModule) return false;
@@ -54,8 +53,7 @@ export async function isModelLoaded(): Promise<boolean> {
 }
 
 /**
- * Builds prompt using TinyLlama's exact chat template format
- * <|system|>\n{system}</s>\n<|user|>\n{user}</s>\n<|assistant|>
+ * TinyLlama chat format
  */
 export function buildTutorPrompt(
   userMessage: string,
@@ -64,12 +62,11 @@ export function buildTutorPrompt(
   topicName: string,
   conversationHistory: { role: string; content: string }[]
 ): string {
-  const systemContent = `You are VidyaBot, a friendly AI tutor for Indian students studying ${subject}, topic: ${topicName}. Give short, simple answers in 2-3 sentences. Use simple words. Give a local Indian analogy when helpful. Always be encouraging.`;
+  const systemContent = `You are VidyaBot, a friendly tutor for Indian students. Subject: ${subject}, Topic: ${topicName}. Answer in 1-2 short sentences. Use simple words.`;
 
   let prompt = `<|system|>\n${systemContent}</s>\n`;
 
-  // Add last 2 exchanges for context
-  const recentHistory = conversationHistory.slice(-4);
+  const recentHistory = conversationHistory.slice(-2);
   for (const msg of recentHistory) {
     if (msg.role === 'user') {
       prompt += `<|user|>\n${msg.content}</s>\n<|assistant|>\n`;
@@ -78,15 +75,10 @@ export function buildTutorPrompt(
     }
   }
 
-  // Add current message
   prompt += `<|user|>\n${userMessage}</s>\n<|assistant|>\n`;
-
   return prompt;
 }
 
-/**
- * Fallback mock responses when model is not available
- */
 function getMockResponse(prompt: string): string {
   const lower = prompt.toLowerCase();
   if (lower.includes('photo') || lower.includes('plant')) {
@@ -99,7 +91,7 @@ function getMockResponse(prompt: string): string {
     return 'Force is a push or pull! When you kick a football, your foot applies force. More force = ball goes farther! ⚽';
   }
   if (lower.includes('fraction')) {
-    return 'Fractions are like cutting a roti! If you cut it into 4 equal pieces and take 1 piece, that is 1/4. Simple! 🫓';
+    return 'Fractions are like cutting a roti! Cut into 4 equal pieces and take 1 piece, that is 1/4. Simple! 🫓';
   }
-  return 'Great question! This concept is like something you see every day in your village. Let me explain step by step. What part would you like to understand first?';
+  return 'Great question! Let me explain step by step. What part would you like to understand first?';
 }

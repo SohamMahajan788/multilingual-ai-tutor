@@ -46,12 +46,11 @@ Java_com_vidyabot_llama_LlamaModule_loadModel(
     }
 
     llama_context_params cp = llama_context_default_params();
-    cp.n_ctx = 512;
-    cp.n_threads = 4;
-    cp.n_threads_batch = 4;
+    cp.n_ctx = 4096;
+    cp.n_threads = 8;
+    cp.n_threads_batch = 8;
 
     g_ctx = llama_init_from_model(g_model, cp);
-
     if (!g_ctx) {
         LOGE("Failed to create context");
         llama_model_free(g_model);
@@ -74,7 +73,6 @@ Java_com_vidyabot_llama_LlamaModule_unloadModel(JNIEnv*, jobject) {
 JNIEXPORT void JNICALL
 Java_com_vidyabot_llama_LlamaModule_stopGeneration(JNIEnv*, jobject) {
     g_stop.store(true);
-    LOGI("Stop requested");
 }
 
 JNIEXPORT jboolean JNICALL
@@ -87,25 +85,21 @@ Java_com_vidyabot_llama_LlamaModule_generate(
     JNIEnv* env, jobject, jstring prompt_j, jint max_tokens
 ) {
     if (!g_model || !g_ctx) {
-        LOGE("Generate called but model not loaded");
         return env->NewStringUTF("Error: model not loaded");
     }
 
     const char* prompt = env->GetStringUTFChars(prompt_j, nullptr);
-    LOGI("Starting generation, prompt length=%d, max_tokens=%d", (int)strlen(prompt), (int)max_tokens);
+    LOGI("Starting generation, max_tokens=%d", (int)max_tokens);
     g_stop.store(false);
 
     const llama_vocab* vocab = llama_model_get_vocab(g_model);
 
-    // Tokenize
+    // Tokenize prompt
     int n = -llama_tokenize(vocab, prompt, strlen(prompt), nullptr, 0, true, false);
-    LOGI("Tokenized: %d tokens", n);
     std::vector<llama_token> tokens(n);
     llama_tokenize(vocab, prompt, strlen(prompt), tokens.data(), n, true, false);
     env->ReleaseStringUTFChars(prompt_j, prompt);
-
-    // Clear KV cache for fresh generation
-    llama_kv_cache_clear(g_ctx);
+    LOGI("Tokenized: %d tokens", n);
 
     // Evaluate prompt
     llama_batch batch = llama_batch_get_one(tokens.data(), n);
@@ -113,44 +107,48 @@ Java_com_vidyabot_llama_LlamaModule_generate(
         LOGE("Prompt decode failed");
         return env->NewStringUTF("Error: decode failed");
     }
-    LOGI("Prompt decoded, starting token generation");
+
+    // Sampler with temperature to avoid loops
+    llama_sampler* sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_p(0.9f, 1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp(0.7f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_dist(42));
+
+    LOGI("Generating...");
 
     std::string result;
     llama_token eos = llama_vocab_eos(vocab);
-    int n_vocab = llama_vocab_n_tokens(vocab);
+
+    // Find <|im_end|> token
+    llama_token im_end_token = -1;
+    {
+        std::vector<llama_token> tmp(8);
+        const char* im_end = "<|im_end|>";
+        int nt = llama_tokenize(vocab, im_end, strlen(im_end), tmp.data(), 8, false, true);
+        if (nt > 0) im_end_token = tmp[0];
+    }
 
     for (int i = 0; i < max_tokens && !g_stop.load(); i++) {
-        float* logits = llama_get_logits_ith(g_ctx, -1);
-        llama_token best = 0;
-        float best_val = logits[0];
-        for (int j = 1; j < n_vocab; j++) {
-            if (logits[j] > best_val) {
-                best_val = logits[j];
-                best = j;
-            }
-        }
+        llama_token token = llama_sampler_sample(sampler, g_ctx, -1);
 
-        if (best == eos) {
-            LOGI("EOS token reached at step %d", i);
+        if (token == eos || token == im_end_token) {
+            LOGI("Stop token at step %d", i);
             break;
         }
 
         char buf[256] = {};
-        int nb = llama_token_to_piece(vocab, best, buf, sizeof(buf), 0, false);
+        int nb = llama_token_to_piece(vocab, token, buf, sizeof(buf), 0, false);
         if (nb > 0) result.append(buf, nb);
 
-        if (i % 10 == 0) {
-            LOGI("Generated %d tokens so far: %s", i, result.c_str());
-        }
+        if (i % 10 == 0) LOGI("Step %d: %s", i, result.c_str());
 
-        llama_batch next = llama_batch_get_one(&best, 1);
-        if (llama_decode(g_ctx, next)) {
-            LOGE("Decode failed at step %d", i);
-            break;
-        }
+        llama_batch next = llama_batch_get_one(&token, 1);
+        if (llama_decode(g_ctx, next)) break;
     }
 
-    LOGI("Generation complete: %d chars: %s", (int)result.size(), result.c_str());
+    llama_sampler_free(sampler);
+    LOGI("Generation complete: %d chars", (int)result.size());
     return env->NewStringUTF(result.c_str());
 }
 
