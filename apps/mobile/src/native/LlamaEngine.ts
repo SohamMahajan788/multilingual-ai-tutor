@@ -1,52 +1,6 @@
-import { NativeModules, Platform } from 'react-native';
-import * as FileSystem from 'expo-file-system/legacy';
+import { NativeModules } from 'react-native';
 
 const { LlamaModule } = NativeModules;
-
-const MODEL_FILENAME = 'model.gguf';
-
-/**
- * Gets the path to the model file on device
- */
-async function getModelPath(): Promise<string> {
-  if (Platform.OS === 'android') {
-    const destPath = `${FileSystem.documentDirectory}${MODEL_FILENAME}`;
-    
-    // Check if already copied to documents
-    const info = await FileSystem.getInfoAsync(destPath);
-    if (info.exists) {
-      return destPath;
-    }
-
-    // Copy from assets bundle to documents directory
-    await FileSystem.copyAsync({
-      from: `${FileSystem.bundleDirectory ?? ''}${MODEL_FILENAME}`,
-      to: destPath,
-    });
-
-    return destPath;
-  }
-  return '';
-}
-
-/**
- * Loads the on-device LLM model
- */
-export async function loadLlamaModel(): Promise<boolean> {
-  try {
-    if (!LlamaModule) {
-      console.warn('LlamaModule not available — using mock mode');
-      return false;
-    }
-    const modelPath = await getModelPath();
-    console.log('Loading model from:', modelPath);
-    const result = await LlamaModule.loadModelAsync(modelPath);
-    return result;
-  } catch (e) {
-    console.error('Failed to load model:', e);
-    return false;
-  }
-}
 
 /**
  * Generates a response from the on-device LLM
@@ -61,10 +15,13 @@ export async function generateResponse(
     }
     const isLoaded = await LlamaModule.isLoaded();
     if (!isLoaded) {
-      await loadLlamaModel();
+      console.log('Model not loaded yet, falling back to mock');
+      return getMockResponse(prompt);
     }
+    console.log('Generating with real AI...');
     const response = await LlamaModule.generateAsync(prompt, maxTokens);
-    return response;
+    console.log('AI response:', response);
+    return response || getMockResponse(prompt);
   } catch (e) {
     console.error('Generation error:', e);
     return getMockResponse(prompt);
@@ -97,7 +54,8 @@ export async function isModelLoaded(): Promise<boolean> {
 }
 
 /**
- * Builds a STEM tutor prompt for the model
+ * Builds prompt using TinyLlama's exact chat template format
+ * <|system|>\n{system}</s>\n<|user|>\n{user}</s>\n<|assistant|>
  */
 export function buildTutorPrompt(
   userMessage: string,
@@ -106,22 +64,24 @@ export function buildTutorPrompt(
   topicName: string,
   conversationHistory: { role: string; content: string }[]
 ): string {
-  const systemPrompt = `You are VidyaBot, an AI tutor for rural Indian students.
-Subject: ${subject}
-Topic: ${topicName}
-Language: ${language}
-Rules:
-- Explain concepts simply using local analogies
-- Keep responses short (2-3 sentences)
-- Always end with an encouraging word
-- Use simple vocabulary appropriate for Class 6-10`;
+  const systemContent = `You are VidyaBot, a friendly AI tutor for Indian students studying ${subject}, topic: ${topicName}. Give short, simple answers in 2-3 sentences. Use simple words. Give a local Indian analogy when helpful. Always be encouraging.`;
 
-  const history = conversationHistory
-    .slice(-4)
-    .map(m => `${m.role === 'user' ? 'Student' : 'VidyaBot'}: ${m.content}`)
-    .join('\n');
+  let prompt = `<|system|>\n${systemContent}</s>\n`;
 
-  return `${systemPrompt}\n\n${history}\nStudent: ${userMessage}\nVidyaBot:`;
+  // Add last 2 exchanges for context
+  const recentHistory = conversationHistory.slice(-4);
+  for (const msg of recentHistory) {
+    if (msg.role === 'user') {
+      prompt += `<|user|>\n${msg.content}</s>\n<|assistant|>\n`;
+    } else {
+      prompt += `${msg.content}</s>\n`;
+    }
+  }
+
+  // Add current message
+  prompt += `<|user|>\n${userMessage}</s>\n<|assistant|>\n`;
+
+  return prompt;
 }
 
 /**

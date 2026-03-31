@@ -47,8 +47,8 @@ Java_com_vidyabot_llama_LlamaModule_loadModel(
 
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = 512;
-    cp.n_threads = 2;
-    cp.n_threads_batch = 2;
+    cp.n_threads = 4;
+    cp.n_threads_batch = 4;
 
     g_ctx = llama_init_from_model(g_model, cp);
 
@@ -74,6 +74,7 @@ Java_com_vidyabot_llama_LlamaModule_unloadModel(JNIEnv*, jobject) {
 JNIEXPORT void JNICALL
 Java_com_vidyabot_llama_LlamaModule_stopGeneration(JNIEnv*, jobject) {
     g_stop.store(true);
+    LOGI("Stop requested");
 }
 
 JNIEXPORT jboolean JNICALL
@@ -86,23 +87,33 @@ Java_com_vidyabot_llama_LlamaModule_generate(
     JNIEnv* env, jobject, jstring prompt_j, jint max_tokens
 ) {
     if (!g_model || !g_ctx) {
+        LOGE("Generate called but model not loaded");
         return env->NewStringUTF("Error: model not loaded");
     }
 
     const char* prompt = env->GetStringUTFChars(prompt_j, nullptr);
+    LOGI("Starting generation, prompt length=%d, max_tokens=%d", (int)strlen(prompt), (int)max_tokens);
     g_stop.store(false);
 
     const llama_vocab* vocab = llama_model_get_vocab(g_model);
 
+    // Tokenize
     int n = -llama_tokenize(vocab, prompt, strlen(prompt), nullptr, 0, true, false);
+    LOGI("Tokenized: %d tokens", n);
     std::vector<llama_token> tokens(n);
     llama_tokenize(vocab, prompt, strlen(prompt), tokens.data(), n, true, false);
     env->ReleaseStringUTFChars(prompt_j, prompt);
 
+    // Clear KV cache for fresh generation
+    llama_kv_cache_clear(g_ctx);
+
+    // Evaluate prompt
     llama_batch batch = llama_batch_get_one(tokens.data(), n);
     if (llama_decode(g_ctx, batch)) {
+        LOGE("Prompt decode failed");
         return env->NewStringUTF("Error: decode failed");
     }
+    LOGI("Prompt decoded, starting token generation");
 
     std::string result;
     llama_token eos = llama_vocab_eos(vocab);
@@ -119,16 +130,27 @@ Java_com_vidyabot_llama_LlamaModule_generate(
             }
         }
 
-        if (best == eos) break;
+        if (best == eos) {
+            LOGI("EOS token reached at step %d", i);
+            break;
+        }
 
         char buf[256] = {};
         int nb = llama_token_to_piece(vocab, best, buf, sizeof(buf), 0, false);
         if (nb > 0) result.append(buf, nb);
 
+        if (i % 10 == 0) {
+            LOGI("Generated %d tokens so far: %s", i, result.c_str());
+        }
+
         llama_batch next = llama_batch_get_one(&best, 1);
-        if (llama_decode(g_ctx, next)) break;
+        if (llama_decode(g_ctx, next)) {
+            LOGE("Decode failed at step %d", i);
+            break;
+        }
     }
 
+    LOGI("Generation complete: %d chars: %s", (int)result.size(), result.c_str());
     return env->NewStringUTF(result.c_str());
 }
 
