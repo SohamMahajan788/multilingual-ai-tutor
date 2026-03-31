@@ -8,6 +8,7 @@
   "scripts": {
     "mobile": "yarn workspace @vidyabot/mobile start",
     "android": "yarn workspace @vidyabot/mobile android",
-    "build:mobile": "yarn workspace @vidyabot/mobile build"
+    "build:mobile": "yarn workspace @vidyabot/mobile build",
+    "copy-model": "node scripts/copy-model.js"
   }
 }
